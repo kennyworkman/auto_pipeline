@@ -1,6 +1,6 @@
 # Colony Screening for Automation 
 
-This project was designed to automate the colony screening process after sequencing and produce data in a way that can be directly interpreted by robotics. For a tool that produces an excel spreadsheet visualization for a single user, see https://github.com/kennyworkman/visual_pipeline.
+This project was designed to automate the colony screening process after sequencing to produce data in a way that can be directly interpreted by robotics. For a tool that produces an excel spreadsheet visualization for a single user, see https://github.com/kennyworkman/visual_pipeline.
 
 
 After cloning this repository, a command line command needs to be issued to make the bash script executable. Calling this executable with the desired/correct parameters will populate two .csv files, one designed as an input for downstream robotics and one of user interpretation of data.
