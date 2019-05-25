@@ -1,0 +1,98 @@
+#!/bin/bash/env bash
+
+# Function prints proper usage of script if there is misuse
+usage() {
+    echo "Usage: $0 [-d <valid directory>] [-t <optional integer>]"    
+    exit 1; # Exit with an error
+}
+
+# Parse through provided options from command line
+while getopts :d:t: o; do
+    case "${o}" in
+        d) 
+            directory=${OPTARG}
+            # Make sure -d option is a directory 
+            [[ -d "$directory" ]] || usage 
+            ;;
+
+        t) 
+            threshold=${OPTARG}
+            # Make sure -t option is an integer
+            [[ $threshold =~ [0-9]+ ]] || usage 
+            ;;
+
+        * | h) 
+            usage # Print usage prompt
+            exit 0 # Exit without errors
+            ;;
+    esac
+done
+
+# Make sure the -d (directory) option is provided
+if [[ -z "$directory" ]]; then
+    usage
+fi
+
+# If no -t (threshhold) provided set the default to 30
+if [[ -z "$threshold" ]]; then
+    threshold=30
+fi
+
+# Label the columns of the output.csv file, robot_output.csv file
+echo "Filename, "Position Reference Alternate", Depth Score, Score" > output.csv
+echo "Filename, Score" > robot_output.csv
+
+# Count total number of selected colonies in directory
+echo "Counting relevant files from directory..."
+total_colonies=$(ls -l "$directory"/*JGI*.vcf | wc -l | tr -d '[:space:]')
+echo "$total_colonies colonies counted in submitted directory."
+echo
+
+# Initiate Counter
+counter=0
+
+echo "Collecting variants and depth metrics from each colony...."
+echo "Your depth threshold is set to $threshold. Stop the script (Ctr-C) if this is incorrect."
+echo
+echo "This may take some time depending on strength of connection to the remote server."
+echo
+    
+# Parse information from each .bam/.vcf file pair. Store in variables and export to csv.
+for filename in "$directory"/*JGI*.vcf; do
+    counter=$((counter + 1))
+    
+    depth_score="$(samtools depth "${filename%.*}.bam" | python depth.py $threshold)"
+    variant_array="$(bcftools query -f '%POS %REF %ALT\n' "$filename")"
+    column_name="$(basename "$filename")"
+    
+    # Assign number of variants based on newlines in previous query
+    if [[ -z $variant_array ]]; then
+        num_variant=0
+    else
+        num_variant=$(($(printf "$variant_array" | wc -l) + 1))
+    fi  
+    
+    echo "$counter/$total_colonies" # echo current/total
+    
+    # Assign a score to each colony based on number of variants and depth score
+    # Score Key --- (1=perfect, 2=might be OK, 3=not worth the look) 
+    if [[ $num_variant -eq 0 ]] && (( $(echo "$depth_score==100" | bc -l) )); then
+        score=1
+    elif (( $( echo "$depth_score<90" | bc -l ) )) || (( $( echo "$num_variant>=5" | bc -l ) )); then
+        score=3 
+    else
+        score=2
+    fi
+    
+    echo "$column_name","$score" >> robot_output.csv
+    echo "$column_name",\""$variant_array"\","$depth_score", "$score" >> output.csv
+done
+
+echo 
+echo "Finished collecting colony information." 
+
+echo "Results written to output.csv"
+echo "Robotics csv written to robot_output.csv"
+# Open output.csv, robot_output.csv files 
+open output.csv
+open robot_output.csv 
